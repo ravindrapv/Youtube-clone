@@ -50,7 +50,7 @@ export const AppContextProvider = ({ children }) => {
   }, []);
 
   console.log(videos);
-
+  console.log(currentUser);
   const value = {
     videos,
     appState,

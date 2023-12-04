@@ -8,39 +8,81 @@ import {
   ThumbUpAlt,
 } from "@material-ui/icons";
 import { Avatar, Button } from "@material-ui/core";
-import { VideoSmall } from "..";
-import { useHistory } from "react-router-dom";
 import moment from "moment";
-import { useAppContext } from "../../context/appContext";
 import firebase from "firebase/app";
 import "firebase/firestore";
+import { useHistory } from "react-router-dom";
+import { useAppContext } from "../../context/appContext";
 
 const Watch = ({ video }) => {
+  const { currentUser } = useAppContext();
   const history = useHistory();
   const handleAvatarRedirect = () => history.push("/PreviewChannel");
   const [showDesc, setShowDesc] = useState(false);
   const [comments, setComments] = useState([]);
   const [comment, setNewComment] = useState("");
   const [subscribers, setSubscribers] = useState([]);
-  const { videos } = useAppContext();
-
+  const [subscribed, setSubscribed] = useState(false);
   const db = firebase.firestore();
 
   // Fetch subscribers from Firebase
+  // Check if the current user is subscribed
   useEffect(() => {
-    const unsubscribe = db
-      .collection("subscribers")
-      .doc(video.channelId)
-      .onSnapshot((doc) => {
-        if (doc.exists) {
-          setSubscribers(doc.data().subscribers);
-        } else {
-          setSubscribers([]);
-        }
-      });
+    const checkSubscription = async () => {
+      if (currentUser) {
+        const userSubscriptionsRef = db
+          .collection("subscribers")
+          .doc(video.channelId)
+          .collection("users");
 
-    return () => unsubscribe();
-  }, [video.channelId, db]);
+        try {
+          const userSubscriptionDoc = await userSubscriptionsRef
+            .doc(currentUser.uid)
+            .get();
+
+          const isSubscribed = userSubscriptionDoc.exists;
+          setSubscribed(isSubscribed);
+
+          // Save subscription status to local storage
+          localStorage.setItem(
+            "subscriptionStatus",
+            JSON.stringify(isSubscribed)
+          );
+        } catch (error) {
+          console.error("Error checking subscription status:", error.message);
+        }
+      }
+    };
+
+    checkSubscription();
+  }, [currentUser, video.channelId, db]);
+
+  // Check if the current user is subscribed
+  useEffect(() => {
+    const checkSubscription = async () => {
+      if (currentUser) {
+        const userSubscriptionsRef = db
+          .collection("subscribers")
+          .doc(video.channelId)
+          .collection("users");
+
+        const userSubscriptionDoc = await userSubscriptionsRef
+          .doc(currentUser.uid)
+          .get();
+
+        const isSubscribed = userSubscriptionDoc.exists;
+        setSubscribed(isSubscribed);
+
+        // Save subscription status to local storage
+        localStorage.setItem(
+          "subscriptionStatus",
+          JSON.stringify(isSubscribed)
+        );
+      }
+    };
+
+    checkSubscription();
+  }, [currentUser, video.channelId, db]);
 
   // Fetch comments from Firebase
   useEffect(() => {
@@ -67,7 +109,7 @@ const Watch = ({ video }) => {
       .collection("comments");
 
     await videoCommentsRef.add({
-      user: video.channelName,
+      user: currentUser.displayName, // Assuming user.displayName is available
       text: comment,
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
     });
@@ -75,7 +117,36 @@ const Watch = ({ video }) => {
     setNewComment(""); // Clear input after commenting
   };
 
-  async function updateSubscribers() {
+  const handleSubscribe = async () => {
+    if (currentUser) {
+      const userSubscriptionsRef = db
+        .collection("subscribers")
+        .doc(video.channelId)
+        .collection("users");
+
+      // Check if the user is already subscribed
+      const userSubscriptionDoc = await userSubscriptionsRef
+        .doc(currentUser.uid)
+        .get();
+
+      if (!userSubscriptionDoc.exists) {
+        // User is not subscribed, update Firestore
+        await userSubscriptionsRef.doc(currentUser.uid).set({
+          subscribedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Update subscriber count
+        updateSubscribers();
+      }
+
+      setSubscribed(true); // Update local state
+
+      // Save subscription status to local storage
+      localStorage.setItem("subscriptionStatus", JSON.stringify(true));
+    }
+  };
+
+  const updateSubscribers = async () => {
     const channelDocRef = db.collection("subscribers").doc(video.channelId);
     try {
       const channelDoc = await channelDocRef.get();
@@ -98,11 +169,19 @@ const Watch = ({ video }) => {
     } catch (error) {
       console.error("Error updating channel subscribers:", error.message);
     }
-  }
+  };
 
   const formatted = moment
     .unix(video?.timestamp?.seconds)
     .format("MMM DD, YYYY  ");
+
+  // Retrieve subscription status from local storage on component mount
+  useEffect(() => {
+    const storedSubscriptionStatus = localStorage.getItem("subscriptionStatus");
+    if (storedSubscriptionStatus) {
+      setSubscribed(JSON.parse(storedSubscriptionStatus));
+    }
+  }, []);
 
   return (
     <div className="watch">
@@ -117,40 +196,11 @@ const Watch = ({ video }) => {
 
             <div className="watch__videoInfo">
               <div className="watch__videoInfoLeft">
-                <p className="videothumb__text">123k views • {formatted}</p>
+                <p className="videothumb__text">1 views • {formatted}</p>
               </div>
 
               <div className="watch__videoInfoRight">
-                <div className="watch__likeContainer">
-                  <div className="watch__likeWrap">
-                    <div className="watch__likeBtnContainer color--gray">
-                      <ThumbUpAlt className="watch__icon" />
-                      <p>15k</p>
-                    </div>
-
-                    <div className="watch__likeBtnContainer color--gray">
-                      <ThumbDownAlt className="watch__icon" />
-                      <p>200</p>
-                    </div>
-                  </div>
-
-                  <div className="watch__likeDislikes" />
-                </div>
-
-                <div className="watch__likeBtnContainer color--gray">
-                  <Reply className="watch__icon share-icon" />
-                  <p>SHARE</p>
-                </div>
-
-                <div className="watch__likeBtnContainer color--gray">
-                  <PlaylistAdd className="watch__icon play-addIcon" />
-                  <p>SAVE</p>
-                </div>
-
-                <div className="watch__likeBtnContainer color--gray">
-                  <MoreHoriz className="watch__icon play-addIcon" />
-                  <p>SAVE</p>
-                </div>
+                {/* Like, dislike, share, save buttons */}
               </div>
             </div>
           </div>
@@ -173,9 +223,10 @@ const Watch = ({ video }) => {
                 className="watch__subBtn"
                 color="primary"
                 variant="contained"
-                onClick={updateSubscribers}
+                onClick={handleSubscribe}
+                disabled={subscribed} // Disable button if already subscribed
               >
-                SUBSCRIBE
+                {subscribed ? "SUBSCRIBED" : "SUBSCRIBE"}
               </Button>
             </div>
 
@@ -210,6 +261,7 @@ const Watch = ({ video }) => {
                 type="text"
                 placeholder="Add a public comment..."
                 onChange={(e) => setNewComment(e.target.value)}
+                value={comment}
               />
               <Button onClick={handleAddComment}>Comment</Button>
             </div>

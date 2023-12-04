@@ -30,10 +30,10 @@ const Sidebar = ({ changeWidth }) => {
 
         {/* Other sidebar buttons are disabled */}
         {/* Remove the "sidebar__btn--active" class from them */}
-        <div className="sidebar__btn">
+        {/* <div className="sidebar__btn">
           <Whatshot className="sidebar__icon" />
           <p>Trending</p>
-        </div>
+        </div> */}
 
         <div className="sidebar__btn">
           <Subscriptions className="sidebar__icon" />
@@ -41,8 +41,7 @@ const Sidebar = ({ changeWidth }) => {
         </div>
       </div>
 
-      <div className="sidebar__buttons bottom">
-        {/* Disable all other sidebar buttons */}
+      {/* <div className="sidebar__buttons bottom">
         <div className="sidebar__btn">
           <VideoLibrary className="sidebar__icon" />
           <p>Libraries</p>
@@ -69,7 +68,7 @@ const Sidebar = ({ changeWidth }) => {
           <ExpandMore className="sidebar__icon" />
           <p>Show More</p>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };
